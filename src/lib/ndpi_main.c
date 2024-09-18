@@ -4394,6 +4394,8 @@ void ndpi_exit_detection_module(struct ndpi_detection_module_struct *ndpi_str) {
 static default_ports_tree_node_t *ndpi_get_guessed_protocol_id(struct ndpi_detection_module_struct *ndpi_str,
                                                                u_int8_t proto, u_int16_t sport, u_int16_t dport) {
   default_ports_tree_node_t node;
+  /* Set use_dport to config value if direction detection is enabled */
+  int use_dport = ndpi_str->cfg.direction_detect_enabled ? ndpi_str->cfg.use_client_in_guess : 1;
 
   if(sport && dport) {
     const void *ret;
@@ -4402,7 +4404,7 @@ static default_ports_tree_node_t *ndpi_get_guessed_protocol_id(struct ndpi_detec
     ret = ndpi_tfind(&node, (proto == IPPROTO_TCP) ? (void *) &ndpi_str->tcpRoot : (void *) &ndpi_str->udpRoot,
 		     default_ports_tree_node_t_cmp);
 
-    if(ret == NULL) {
+    if(ret == NULL && use_dport) {
       node.default_port = sport;
       ret = ndpi_tfind(&node, (proto == IPPROTO_TCP) ? (void *) &ndpi_str->tcpRoot : (void *) &ndpi_str->udpRoot,
 		       default_ports_tree_node_t_cmp);
@@ -7422,6 +7424,7 @@ u_int16_t ndpi_guess_host_protocol_id(struct ndpi_detection_module_struct *ndpi_
 				      struct ndpi_flow_struct *flow) {
   struct ndpi_packet_struct *packet = &ndpi_str->packet;
   u_int16_t ret = NDPI_PROTOCOL_UNKNOWN;
+  int use_client = ndpi_str->cfg.use_client_in_guess;
 
   if(packet->iph) {
     struct in_addr addr;
@@ -7430,7 +7433,7 @@ u_int16_t ndpi_guess_host_protocol_id(struct ndpi_detection_module_struct *ndpi_
     addr.s_addr = flow->s_address.v4;
     ret = ndpi_network_port_ptree_match(ndpi_str, &addr, flow->s_port);
 
-    if(ret == NDPI_PROTOCOL_UNKNOWN) {
+    if(ret == NDPI_PROTOCOL_UNKNOWN && use_client) {
       addr.s_addr = flow->c_address.v4;
       ret = ndpi_network_port_ptree_match(ndpi_str, &addr, flow->c_port);
     }
@@ -7441,7 +7444,7 @@ u_int16_t ndpi_guess_host_protocol_id(struct ndpi_detection_module_struct *ndpi_
     addr = *(struct in6_addr *)&flow->s_address.v6;
     ret = ndpi_network_port_ptree6_match(ndpi_str, &addr, flow->s_port);
 
-    if(ret == NDPI_PROTOCOL_UNKNOWN) {
+    if(ret == NDPI_PROTOCOL_UNKNOWN && use_client) {
       addr = *(struct in6_addr *)&flow->c_address.v6;
       ret = ndpi_network_port_ptree6_match(ndpi_str, &addr, flow->c_port);
     }
@@ -11509,6 +11512,7 @@ static const struct cfg_param {
   { NULL,            "dpi.guess_on_giveup",                     "0x3", "0", "3", CFG_PARAM_INT, __OFF(guess_on_giveup), NULL },
   { NULL,            "dpi.guess_ip_before_port",                "disable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(guess_ip_before_port), NULL},
   { NULL,            "dpi.compute_entropy",                     "1", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(compute_entropy), NULL },
+  { NULL,            "dpi.use_client_in_guess",                 "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(use_client_in_guess), NULL},
   { NULL,            "fpc",                                     "1", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(fpc_enabled), NULL },
 
   { NULL,            "flow_risk_lists.load",                    "1", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(flow_risk_lists_enabled), NULL },
